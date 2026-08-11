@@ -1,9 +1,11 @@
 # DevSecOps Demo
 
-An end-to-end **DevSecOps** reference project: a small Node.js/Express API that is
-built, tested and secured by a GitLab CI/CD pipeline, deployed to Kubernetes with
-infrastructure managed as code, and guarded by a full suite of automated security
-scans at every stage.
+An end-to-end **DevSecOps** reference project: a responsive **Coffee Shop** website
+(HTML/CSS/JS, from the open-source
+[coffee-shop](https://github.com/sheikh92areeb/coffee-shop) project) served by a
+small Node.js/Express server. It is built, tested and secured by a GitLab CI/CD
+pipeline, deployed to Kubernetes with infrastructure managed as code, and guarded
+by a full suite of automated security scans at every stage.
 
 > GitLab repo: https://gitlab.odp.om/csharma/devsecops-demo
 
@@ -46,8 +48,8 @@ scans at every stage.
 │   ├── provision-runner.sh   # Installs Node.js, Docker, kind + CLIs on runner (sudo)
 │   ├── deploy.sh             # Loads image into kind + kubectl/kustomize apply
 │   └── docker-preview.sh     # Runs the app on the runner host (:8080) for a visual check
-├── src/                      # Express API (app, routes, middleware, store)
-├── public/                   # Web portal (index.html, styles.css, app.js)
+├── src/                      # Express server (app, config, error handler)
+├── public/                   # Coffee Shop site (index.html, assits/, img/)
 ├── tests/                    # Jest + supertest unit/integration tests
 ├── openapi.yaml              # API contract, consumed by DAST API scan
 ├── Dockerfile                # Multi-stage, non-root, read-only FS
@@ -72,20 +74,15 @@ Try it:
 
 ```bash
 curl -s http://localhost:3000/health
-curl -s -H "X-API-Key: <your key>" http://localhost:3000/api/todos
 ```
 
-### Web portal
+### Web site
 
-The app also serves a **web portal** (`public/`) so you can see the API in a
-browser instead of a terminal. Open `http://localhost:3000/` in a browser to get
-the portal (API clients hitting `/` without an HTML `Accept` header still get the
-JSON service info). The portal shows live status/uptime and lets you add, toggle
-and delete todos against the demo API key.
-
-> The default `API_KEY` is a **fake demo value** stored in `src/config.js`. It is
-> intentionally hardcoded so the Secret Detection scan (gitleaks) has a finding to
-> demonstrate. In production, inject it via a CI/CD secret.
+The app serves the **Coffee Shop** website (`public/`) so you can see it in a
+browser instead of a terminal. Open `http://localhost:3000/` in a browser to view
+the site (API clients hitting `/` without an HTML `Accept` header still get the
+JSON service info). The site has home, about, menu, products, reviews, contact and
+blogs sections.
 
 ### Docker
 
@@ -128,9 +125,8 @@ it builds the image locally and starts the app on **port 8080 of the runner host
 (`10.0.170.128`). Open it in a browser:
 
 ```text
-http://10.0.170.128:8080/          # web portal (open in a browser)
+http://10.0.170.128:8080/          # Coffee Shop website (open in a browser)
 http://10.0.170.128:8080/health    # health check
-http://10.0.170.128:8080/api/todos # needs header: X-API-Key: sk-demo-0123456789abcdef0123456789abcdef-DEMO
 ```
 
 When you are done, run the manual **`docker-preview:stop`** job to remove the
@@ -157,8 +153,8 @@ container.
 > intervention**: test → security scans → build & push image → Trivy image scan →
 > `deploy:staging` → `deploy:production`. Both deploys target the kind cluster on
 > the runner host: `scripts/deploy.sh` loads the exact commit image into kind and
-> applies the overlay. The app is reachable at
-> `http://10.0.170.128:30080/` (NodePort; portal) and
+> applies the overlay. The site is reachable at
+> `http://10.0.170.128:30080/` (NodePort; Coffee Shop) and
 > `http://10.0.170.128:30080/health`.
 
 ### Local security checks (pre-push)

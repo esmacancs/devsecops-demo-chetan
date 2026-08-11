@@ -40,22 +40,11 @@ spec:
                 configMapKeyRef:
                   name: devsecops-demo-config
                   key: PORT
-            - name: MAX_TODOS
-              valueFrom:
-                configMapKeyRef:
-                  name: devsecops-demo-config
-                  key: MAX_TODOS
             - name: TRUST_PROXY
               valueFrom:
                 configMapKeyRef:
                   name: devsecops-demo-config
                   key: TRUST_PROXY
-            - name: API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: devsecops-demo-api-key
-                  key: api-key
-                  optional: true
           securityContext:
             runAsNonRoot: true
             runAsUser: 1001

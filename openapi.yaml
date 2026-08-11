@@ -1,20 +1,17 @@
 openapi: 3.0.3
 info:
-  title: DevSecOps Demo API
-  description: Todo API used to demonstrate the DevSecOps pipeline (also consumed by GitLab DAST API).
+  title: Coffee Shop
+  description: Coffee Shop website served by the DevSecOps demo pipeline (also consumed by GitLab DAST API).
   version: 1.0.0
 servers:
   - url: http://localhost:3000
     description: Local
   - url: https://staging.example.com
     description: Staging
-security:
-  - ApiKeyAuth: []
 paths:
   /health:
     get:
       summary: Liveness probe
-      security: []
       responses:
         '200':
           description: Service is healthy
@@ -27,121 +24,3 @@ paths:
                     type: string
                   uptime:
                     type: number
-  /api/todos:
-    get:
-      summary: List todos
-      responses:
-        '200':
-          description: List of todos
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Todo'
-        '401':
-          description: Missing or invalid API key
-    post:
-      summary: Create a todo
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [title]
-              properties:
-                title:
-                  type: string
-                  maxLength: 120
-                completed:
-                  type: boolean
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Todo'
-        '400':
-          description: Validation error
-        '401':
-          description: Missing or invalid API key
-        '429':
-          description: Todo limit reached
-  /api/todos/{id}:
-    parameters:
-      - $ref: '#/components/parameters/TodoId'
-    get:
-      summary: Get a todo
-      responses:
-        '200':
-          description: Todo
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Todo'
-        '401':
-          description: Missing or invalid API key
-        '404':
-          description: Todo not found
-    put:
-      summary: Update a todo
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  maxLength: 120
-                completed:
-                  type: boolean
-      responses:
-        '200':
-          description: Updated todo
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Todo'
-        '401':
-          description: Missing or invalid API key
-        '404':
-          description: Todo not found
-    delete:
-      summary: Delete a todo
-      responses:
-        '204':
-          description: Deleted
-        '401':
-          description: Missing or invalid API key
-        '404':
-          description: Todo not found
-components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-  parameters:
-    TodoId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: integer
-      description: Numeric todo id
-  schemas:
-    Todo:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        completed:
-          type: boolean
-        createdAt:
-          type: string
-          format: date-time

@@ -9,5 +9,4 @@ metadata:
 data:
   NODE_ENV: production
   PORT: "3000"
-  MAX_TODOS: "100"
   TRUST_PROXY: "true"

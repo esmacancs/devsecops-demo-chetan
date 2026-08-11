@@ -5,8 +5,6 @@ const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const config = require('./config');
-const todosRouter = require('./routes/todos');
-const { authenticate } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -17,31 +15,27 @@ app.set('trust proxy', config.trustProxy ? 1 : false);
 
 app.use(helmet());
 app.use(morgan(config.env === 'development' ? 'dev' : 'combined'));
-app.use(express.json({ limit: '100kb' }));
 
-// Serve the OpenAPI spec from the repo root so the portal can link to it.
+// Serve the OpenAPI spec from the repo root so clients can link to it.
 app.get('/openapi.yaml', (req, res) => {
   res.type('application/yaml').sendFile(path.join(__dirname, '..', 'openapi.yaml'));
 });
 
 app.get('/', (req, res) => {
-  // Browsers asking for HTML get the portal; API clients keep getting JSON.
+  // Browsers asking for HTML get the coffee-shop site; API clients get JSON.
   if ((req.get('Accept') || '').includes('text/html')) {
     return res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
   }
   res.json({
-    name: 'DevSecOps Demo API',
+    name: 'Coffee Shop',
     version: '1.0.0',
     health: '/health',
-    todos: '/api/todos',
   });
 });
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
 });
-
-app.use('/api/todos', authenticate, todosRouter);
 
 app.use(express.static(PUBLIC_DIR));
 
