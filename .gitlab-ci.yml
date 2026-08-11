@@ -129,11 +129,13 @@ license-compliance:
       - gl-license-scanning-report.json
   allow_failure: true
 
-# IaC scanning — KICS (terraform + k8s manifests)
+# IaC scanning — KICS (terraform + k8s manifests).
+# Queries are installed by provision-runner.sh at /usr/local/share/kics/queries.
+# Note: kics v2.x exits non-zero when findings exist, hence the `|| true`.
 sast-iac-kics:
   stage: security
   script:
-    - kics scan -p . -o . --report-formats json --output-name gl-sast-iac --quiet || true
+    - kics scan -p . -o . --report-formats json --output-name gl-sast-iac --queries-path /usr/local/share/kics/queries || true
   artifacts:
     when: always
     paths:

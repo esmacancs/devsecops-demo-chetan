@@ -168,6 +168,19 @@ if ! command -v kics >/dev/null 2>&1; then
   install /tmp/kics "$BIN/kics" && rm -f /tmp/kics
 fi
 
+# KICS does not embed its query packs — download them from the source tree at
+# the same tag and install them so scans work without a network per-pipeline.
+if [ ! -d /usr/local/share/kics/queries ]; then
+  log "installing kics queries ${KICS_VERSION}"
+  curl -fsSL "https://github.com/Checkmarx/kics/archive/refs/tags/${KICS_VERSION}.tar.gz" -o /tmp/kics-src.tar.gz
+  tar -xzf /tmp/kics-src.tar.gz -C /tmp
+  mkdir -p /usr/local/share/kics
+  cp -r "/tmp/kics-${KICS_VERSION#v}/assets/queries" /usr/local/share/kics/queries
+  chmod -R a+rX /usr/local/share/kics/queries
+  rm -rf /tmp/kics-src.tar.gz "/tmp/kics-${KICS_VERSION#v}"
+  log "kics queries installed"
+fi
+
 log "provisioning complete. Versions:"
 node --version || true
 npm --version || true
