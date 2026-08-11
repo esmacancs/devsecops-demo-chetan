@@ -9,7 +9,3 @@ resources:
   - ingress.yaml
 commonLabels:
   app.kubernetes.io/managed-by: kustomize
-images:
-  - name: registry.gitlab.com/csharma/devsecops-demo
-    newName: registry.gitlab.com/csharma/devsecops-demo
-    newTag: latest

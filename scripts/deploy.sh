@@ -81,6 +81,11 @@ export KUBECONFIG="$HOME/.kube/config"
 log "verifying cluster access..."
 kubectl cluster-info >/dev/null
 
+# The base manifests use a neutral image reference (devsecops-demo:latest) so
+# the overlay image transformer below can always match and pin the exact commit
+# tag, no matter which registry CI_REGISTRY_IMAGE points at.
+BASE_IMAGE_NAME="devsecops-demo"
+
 # ---- make the image visible to the kind nodes ----
 log "loading $IMAGE:$TAG into the kind cluster '$KIND_CLUSTER'..."
 docker pull "$IMAGE:$TAG" >/dev/null 2>&1 || true
@@ -92,7 +97,7 @@ trap 'rm -rf "$WORK"' EXIT
 cp -r k8s "$WORK/k8s"
 (
   cd "$WORK/k8s/overlays/$ENV_NAME"
-  kustomize edit set image "$IMAGE=$IMAGE:$TAG"
+  kustomize edit set image "$BASE_IMAGE_NAME=$IMAGE:$TAG"
 )
 
 log "applying $ENV_NAME overlay (image $IMAGE:$TAG)..."

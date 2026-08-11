@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: devsecops-demo
-          image: registry.gitlab.com/csharma/devsecops-demo:latest
+          image: devsecops-demo:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
