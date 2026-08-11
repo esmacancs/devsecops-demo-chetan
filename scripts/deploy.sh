@@ -6,9 +6,13 @@
 # Picks up everything it needs from CI env vars:
 #   CI_REGISTRY_IMAGE, CI_COMMIT_SHORT_SHA  (set automatically by GitLab)
 #   KUBE_CONFIG                             (optional; content of the kind
-#                                           kubeconfig. If unset it falls back
-#                                           to $HOME/.kube/config, then to
-#                                           /home/ubuntu/.kube/config.)
+#                                           kubeconfig)
+#   KIND_CLUSTER                            (optional; default demo-cluster)
+#
+# Kubeconfig resolution: KUBE_CONFIG variable -> $HOME/.kube/config ->
+# common paths (/home/ubuntu, /root, /home/gitlab-runner,
+# /var/lib/gitlab-runner) -> `kind get kubeconfig` regenerated from the live
+# cluster.
 #
 # Because kind nodes run containerd inside their own VM, images built on the
 # host are loaded into the cluster with `kind load docker-image` before the
@@ -27,10 +31,11 @@ IMAGE="${CI_REGISTRY_IMAGE:-registry.gitlab.com/csharma/devsecops-demo}"
 TAG="${CI_COMMIT_SHORT_SHA:?CI_COMMIT_SHORT_SHA is not set}"
 NAMESPACE="devsecops-demo"
 DEPLOYMENT="devsecops-demo"
+KIND_CLUSTER="${KIND_CLUSTER:-demo-cluster}"
 
 log() { echo "[deploy:$ENV_NAME] $*"; }
 
-# ---- kubeconfig (CI variable -> runner home -> ubuntu home) ----
+# ---- kubeconfig (CI variable -> common paths -> regenerate via kind) ----
 setup_kubeconfig() {
   if [ -n "${KUBE_CONFIG:-}" ]; then
     mkdir -p "$HOME/.kube"
@@ -43,14 +48,31 @@ setup_kubeconfig() {
     log "using $HOME/.kube/config"
     return 0
   fi
-  if [ -f "/home/ubuntu/.kube/config" ]; then
+  for candidate in \
+    /home/ubuntu/.kube/config \
+    /root/.kube/config \
+    /home/gitlab-runner/.kube/config \
+    /var/lib/gitlab-runner/.kube/config; do
+    if [ -f "$candidate" ]; then
+      mkdir -p "$HOME/.kube"
+      cp "$candidate" "$HOME/.kube/config"
+      chmod 600 "$HOME/.kube/config"
+      log "copied kubeconfig from $candidate"
+      return 0
+    fi
+  done
+  # Last resort: regenerate the kubeconfig straight from the cluster. This works
+  # no matter which user created the cluster, as long as the kind CLI is on PATH.
+  if command -v kind >/dev/null 2>&1 && kind get clusters 2>/dev/null | grep -q "^${KIND_CLUSTER}$"; then
     mkdir -p "$HOME/.kube"
-    cp "/home/ubuntu/.kube/config" "$HOME/.kube/config"
+    kind get kubeconfig --name "$KIND_CLUSTER" > "$HOME/.kube/config"
     chmod 600 "$HOME/.kube/config"
-    log "copied kubeconfig from /home/ubuntu/.kube/config"
+    log "regenerated kubeconfig for kind cluster '$KIND_CLUSTER'"
     return 0
   fi
-  log "ERROR: no kubeconfig found. Set the KUBE_CONFIG CI variable (content of the kind cluster's ~/.kube/config) or run provision-runner to copy it."
+  log "ERROR: no kubeconfig found and kind cluster '$KIND_CLUSTER' is not reachable."
+  log "Set the KUBE_CONFIG CI variable (content of the kind cluster's ~/.kube/config),"
+  log "or ensure the kind CLI + kubeconfig are available to the runner user (run provision-runner once)."
   exit 1
 }
 setup_kubeconfig
