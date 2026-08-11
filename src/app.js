@@ -13,7 +13,17 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 app.set('trust proxy', config.trustProxy ? 1 : false);
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        // The coffee-shop contact section embeds a Google Maps iframe.
+        'frame-src': ["'self'", 'https://www.google.com'],
+      },
+    },
+  })
+);
 app.use(morgan(config.env === 'development' ? 'dev' : 'combined'));
 
 // Serve the OpenAPI spec from the repo root so clients can link to it.
