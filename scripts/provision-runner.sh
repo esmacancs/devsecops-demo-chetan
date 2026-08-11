@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Provision the opn-prime GitLab runner host with Node.js 20, npm, Docker Engine,
-# Compose, kubectl, helm, kustomize and terraform.
+# Compose, kubectl, helm, kustomize, terraform and kind (for the local K8s
+# cluster that the pipeline deploys to).
 #
 # This is the job you run ONCE from the CI pipeline (job: provision-runner)
 # or manually. It REQUIRES root (sudo). Run: sudo bash scripts/provision-runner.sh
@@ -98,6 +99,14 @@ if [ -n "$RUNNER_USER" ]; then
   log "granting passwordless sudo to $RUNNER_USER"
   echo "$RUNNER_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/gitlab-runner-ci
   chmod 440 /etc/sudoers.d/gitlab-runner-ci
+  # If kind was created by another user (e.g. /home/ubuntu), make its
+  # kubeconfig available to the runner so the deploy jobs can use kubectl.
+  if [ -f /home/ubuntu/.kube/config ] && [ "$RUNNER_USER" != "ubuntu" ]; then
+    log "copying /home/ubuntu/.kube/config to /home/$RUNNER_USER/.kube/config"
+    mkdir -p "/home/$RUNNER_USER/.kube"
+    install -m 600 /home/ubuntu/.kube/config "/home/$RUNNER_USER/.kube/config"
+    chown -R "$RUNNER_USER" "/home/$RUNNER_USER/.kube" || true
+  fi
   log "restarting gitlab-runner (this may end the current job; installs are already complete)"
   systemctl restart gitlab-runner || true
 else
@@ -133,6 +142,17 @@ if ! command -v terraform >/dev/null 2>&1; then
   log "installing terraform ${TERRAFORM_VERSION}"
   curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
   unzip -o -q /tmp/tf.zip -d /tmp && install /tmp/terraform "$BIN/terraform" && rm -f /tmp/tf.zip /tmp/terraform
+fi
+
+# ---- kind (local Kubernetes for the automated deploy) ----
+# The cluster itself is created once with `kind create cluster` (e.g. as the
+# ubuntu user). This installs the CLI so `kind load docker-image` works in the
+# deploy jobs; the kubeconfig handoff happens in the RUNNER_USER block above.
+KIND_VERSION="${KIND_VERSION:-v0.24.0}"
+if ! command -v kind >/dev/null 2>&1; then
+  log "installing kind ${KIND_VERSION}"
+  curl -fsSL "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64" -o "$BIN/kind"
+  chmod +x "$BIN/kind"
 fi
 
 # ---- Security scanners into /usr/local/bin ----
@@ -189,6 +209,7 @@ kubectl version --client --short 2>/dev/null || kubectl version --client || true
 kustomize version 2>/dev/null || true
 helm version --short 2>/dev/null || true
 terraform version 2>/dev/null || true
+kind --version 2>/dev/null || true
 gitleaks version 2>/dev/null || true
 trivy --version 2>/dev/null | head -n1 || true
 tfsec version 2>/dev/null || true

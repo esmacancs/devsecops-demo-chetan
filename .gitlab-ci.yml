@@ -3,12 +3,12 @@
 #
 # Executor: shell (opn-prime VM) — no `image:` blocks are used because a shell
 # executor ignores them. Run the manual `provision-runner` job ONCE to install
-# Node.js, Docker and all scanner/deploy CLIs on the runner host (requires
+# Node.js, Docker, kind and all scanner/deploy CLIs on the runner host (requires
 # passwordless sudo). The automatic jobs below assume those tools exist on the
 # host PATH — no per-pipeline tool downloads.
 #
 #   .pre  provision-runner   -> MANUAL, root/sudo job that installs Node.js 20,
-#                               npm, Docker Engine, kubectl/kustomize/helm/
+#                               npm, Docker Engine, kind, kubectl/kustomize/helm/
 #                               terraform and gitleaks/trivy/tfsec/kics on the
 #                               runner host. Run it once; future pipelines just
 #                               use the tools.
@@ -19,9 +19,19 @@
 # while you inspect findings. Flip *_FAIL_ON_ISSUES to "true" (or remove the
 # `|| true` / allow_failure) to make them hard gates.
 #
-# Container build/scan and deployments are MANUAL jobs so the default pipeline
-# is green on a bare node+git runner. Once Docker/kubectl are on the host
-# (provision-runner), trigger them manually.
+# On `main`, the pipeline is FULLY AUTOMATED with no manual intervention:
+#   test -> security scans -> build & push image -> Trivy image scan
+#        -> deploy:staging -> deploy:production (both to the kind cluster
+#           that runs on this same host, exposed via NodePort 30080).
+#
+# The two deploy jobs load the built image into kind and `kubectl apply` the
+# staging/production kustomize overlays (scripts/deploy.sh). They need kubectl
+# to reach the cluster: set the KUBE_CONFIG CI variable to the content of the
+# kind cluster's ~/.kube/config, or let provision-runner copy it from
+# /home/ubuntu/.kube/config for the runner user.
+#
+# docker-preview and dast-api stay manual because they are optional extras
+# (eyeballing the container, running ZAP DAST).
 # ============================================================================
 
 stages:
@@ -182,12 +192,11 @@ dast-api:
       - gl-dast-report.html
 
 # ----------------------------------------------------------------------------
-# package — build & push container image (MANUAL until Docker is provisioned)
+# package — build & push container image (automatic on main)
 # ----------------------------------------------------------------------------
 
 build-image:
   stage: package
-  when: manual
   only:
     - main
   script:
@@ -201,7 +210,6 @@ build-image:
 # Lives in the 'scan' stage (after 'package') because it needs the built image.
 container-scanning-image:
   stage: scan
-  when: manual
   allow_failure: true
   needs: [build-image]
   only:
@@ -241,31 +249,29 @@ docker-preview:stop:
     - docker rm -f devsecops-demo-preview >/dev/null 2>&1 && echo "preview container stopped" || echo "no preview container running"
 
 # ----------------------------------------------------------------------------
-# deploy — K8s via kubectl + kustomize (MANUAL; needs KUBE_CONFIG variable)
+# deploy — automatic K8s deploy to the kind cluster on this runner host.
+# scripts/deploy.sh loads the image into kind, pins the exact commit tag and
+# applies the overlay via kubectl + kustomize. No manual intervention on main.
 # ----------------------------------------------------------------------------
 
 deploy:staging:
   stage: deploy
-  when: manual
   needs: [build-image]
   only:
     - main
   environment:
     name: staging
-    url: https://staging.example.com
+    url: http://10.0.170.128:30080
   script:
-    - kubectl apply -k k8s/overlays/staging
-    - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s
+    - bash scripts/deploy.sh staging
 
 deploy:production:
   stage: deploy
-  when: manual
   needs: [build-image]
   only:
     - main
   environment:
     name: production
-    url: https://app.example.com
+    url: http://10.0.170.128:30080
   script:
-    - kubectl apply -k k8s/overlays/production
-    - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s
+    - bash scripts/deploy.sh production
