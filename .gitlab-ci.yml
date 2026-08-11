@@ -27,6 +27,7 @@ stages:
   - test
   - security
   - package
+  - scan
   - deploy
 
 variables:
@@ -189,9 +190,7 @@ dast-api:
   allow_failure: true
   script:
     - test -n "$DAST_TARGET_URL" || (echo "Set DAST_TARGET_URL, e.g. https://staging.example.com"; exit 1)
-    - docker run --rm -v "$CI_PROJECT_DIR:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable
-        zap-api-scan.py -t /zap/wrk/openapi.yaml -f openapi -r /zap/wrk/gl-dast-report.html
-        -z "-X $DAST_TARGET_URL" || true
+    - docker run --rm -v "$CI_PROJECT_DIR:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py -t /zap/wrk/openapi.yaml -f openapi -r /zap/wrk/gl-dast-report.html -z "-X $DAST_TARGET_URL" || true
   artifacts:
     when: always
     paths:
@@ -215,8 +214,9 @@ build-image:
     - docker push "$CI_REGISTRY_IMAGE:latest"
 
 # Full container image vulnerability scan (needs Docker + built image)
+# Lives in the 'scan' stage (after 'package') because it needs the built image.
 container-scanning-image:
-  stage: security
+  stage: scan
   when: manual
   allow_failure: true
   needs: [bootstrap, build-image]
