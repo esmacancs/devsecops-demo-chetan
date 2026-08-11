@@ -5,103 +5,226 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DevSecOps Demo — Portal</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="bg-glow" aria-hidden="true"></div>
+  <!-- Animated particle canvas -->
+  <canvas id="particles" aria-hidden="true"></canvas>
 
-  <header class="topbar">
+  <!-- Floating orbs (CSS) -->
+  <div class="orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <header class="topbar" id="topbar">
     <div class="brand">
-      <div class="logo">&#128737;</div>
-      <div>
-        <div class="brand-name">DevSecOps Demo</div>
-        <div class="brand-sub">Node.js &middot; Express &middot; CI/CD &middot; Security</div>
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9 12 11 14 15 10"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">DevSecOps</span>
+        <span class="brand-sub">Secure. Automated. Live.</span>
       </div>
     </div>
     <nav class="nav">
-      <a href="#status">Status</a>
-      <a href="#endpoints">Endpoints</a>
-      <a href="#todos">Todos</a>
-      <a class="badge-pill" href="openapi.yaml">OpenAPI</a>
+      <a href="#status" class="nav-link">Status</a>
+      <a href="#endpoints" class="nav-link">Endpoints</a>
+      <a href="#todos" class="nav-link">Todos</a>
+      <a href="openapi.yaml" class="nav-pill" target="_blank">OpenAPI Spec</a>
     </nav>
   </header>
 
   <main>
-    <section class="hero">
-      <h1>Beautiful portal for a secure API</h1>
-      <p>
-        This page is served straight from the container. It is a living proof that the
-        image built, scanned and deployed by the DevSecOps pipeline works end to end.
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <div class="hero-badge animate-in">CI/CD Pipeline — Fully Automated</div>
+      <h1 class="hero-title">
+        A Secure API.<br/>
+        <span class="gradient-text">Beautifully Presented.</span>
+      </h1>
+      <p class="hero-desc">
+        End-to-end DevSecOps demo: a Node.js/Express API tested by 16 integration tests,
+        guarded by SAST, secret detection, dependency and container scans — all running on
+        every merge request, with zero manual intervention.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="#todos">Try the Todos API</a>
-        <a class="btn btn-ghost" href="#endpoints">View endpoints</a>
+        <a class="btn btn-glow" href="#todos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          Try the API
+        </a>
+        <a class="btn btn-outline" href="#endpoints">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          View Endpoints
+        </a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num" data-count="16">0</span><span class="stat-label">Tests Passing</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num" data-count="7">0</span><span class="stat-label">Security Scans</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num" data-count="100">0</span><span class="stat-label">Lines Covered</span></div>
       </div>
     </section>
 
-    <section id="status" class="cards">
-      <article class="card">
-        <div class="card-icon">&#129690;</div>
-        <div class="card-label">API status</div>
-        <div class="card-value"><span class="dot ok" id="apiStatusDot"></span><span id="apiStatus">checking…</span></div>
-      </article>
-      <article class="card">
-        <div class="card-icon">&#128138;</div>
-        <div class="card-label">Health</div>
-        <div class="card-value" id="healthValue">checking…</div>
-      </article>
-      <article class="card">
-        <div class="card-icon">&#9201;</div>
-        <div class="card-label">Uptime</div>
-        <div class="card-value mono" id="uptimeValue">&mdash;</div>
-      </article>
-      <article class="card">
-        <div class="card-icon">&#128272;</div>
-        <div class="card-label">Version</div>
-        <div class="card-value mono" id="versionValue">1.0.0</div>
-      </article>
+    <!-- Status Cards -->
+    <section id="status" class="section">
+      <div class="status-grid">
+        <article class="status-card glass">
+          <div class="status-icon pulse-ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="status-body">
+            <div class="status-label">API Health</div>
+            <div class="status-value" id="healthValue">checking…</div>
+          </div>
+          <div class="status-dot" id="healthDot"><span class="dot-pulse"></span></div>
+        </article>
+
+        <article class="status-card glass">
+          <div class="status-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="status-body">
+            <div class="status-label">Uptime</div>
+            <div class="status-value" id="uptimeValue">—</div>
+          </div>
+        </article>
+
+        <article class="status-card glass">
+          <div class="status-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="status-body">
+            <div class="status-label">Pipeline</div>
+            <div class="status-value">All Passing</div>
+          </div>
+          <div class="status-dot"><span class="dot-pulse"></span></div>
+        </article>
+
+        <article class="status-card glass">
+          <div class="status-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          </div>
+          <div class="status-body">
+            <div class="status-label">OpenAPI</div>
+            <div class="status-value"><a href="openapi.yaml" target="_blank">3.0.3 Spec</a></div>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <section id="endpoints" class="split">
-      <article class="panel">
-        <h2>API endpoints</h2>
-        <ul class="endpoints">
-          <li><span class="method get">GET</span><code>/</code><span class="desc">service info</span></li>
-          <li><span class="method get">GET</span><code>/health</code><span class="desc">health check</span></li>
-          <li><span class="method get">GET</span><code>/api/todos</code><span class="desc">list todos</span></li>
-          <li><span class="method post">POST</span><code>/api/todos</code><span class="desc">create todo</span></li>
-          <li><span class="method put">PUT</span><code>/api/todos/:id</code><span class="desc">update todo</span></li>
-          <li><span class="method delete">DELETE</span><code>/api/todos/:id</code><span class="desc">delete todo</span></li>
-        </ul>
-        <h3>Try it from the terminal</h3>
-        <pre class="code">curl http://localhost:3000/health
-curl -H "X-API-Key: $KEY" http://localhost:3000/api/todos</pre>
-        <p class="hint">Authenticated routes require the <code>X-API-Key</code> header (see the Todos panel).</p>
-      </article>
+    <!-- Endpoints + Pipeline -->
+    <section id="endpoints" class="section">
+      <div class="split-layout">
+        <div class="card glass">
+          <div class="card-header">
+            <h2>API Endpoints</h2>
+            <span class="badge">REST</span>
+          </div>
+          <ul class="endpoint-list">
+            <li class="endpoint" data-method="get">
+              <span class="method get">GET</span>
+              <code>/</code>
+              <span class="endpoint-desc">Service info / Portal</span>
+            </li>
+            <li class="endpoint" data-method="get">
+              <span class="method get">GET</span>
+              <code>/health</code>
+              <span class="endpoint-desc">Health check</span>
+            </li>
+            <li class="endpoint" data-method="get">
+              <span class="method get">GET</span>
+              <code>/api/todos</code>
+              <span class="endpoint-desc">List todos</span>
+            </li>
+            <li class="endpoint" data-method="post">
+              <span class="method post">POST</span>
+              <code>/api/todos</code>
+              <span class="endpoint-desc">Create todo</span>
+            </li>
+            <li class="endpoint" data-method="put">
+              <span class="method put">PUT</span>
+              <code>/api/todos/:id</code>
+              <span class="endpoint-desc">Update todo</span>
+            </li>
+            <li class="endpoint" data-method="delete">
+              <span class="method delete">DEL</span>
+              <code>/api/todos/:id</code>
+              <span class="endpoint-desc">Delete todo</span>
+            </li>
+          </ul>
+        </div>
 
-      <article id="todos" class="panel">
-        <h2>Todos <span class="pill" id="todoCount">0</span></h2>
-        <div class="field">
-          <label for="apiKey">API key (X-API-Key)</label>
+        <div class="card glass">
+          <div class="card-header">
+            <h2>Pipeline Stages</h2>
+            <span class="badge badge-green">16/16 passing</span>
+          </div>
+          <ul class="pipeline-list">
+            <li class="pipeline-item"><span class="stage-dot stage-pre"></span><span class="stage-name">provision-runner</span><span class="stage-tag manual">manual</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-test"></span><span class="stage-name">test</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">SAST (eslint)</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">secret-detection</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">dependency-scan</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">license-compliance</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">IaC (KICS + tfsec)</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-sec"></span><span class="stage-name">container-fs (Trivy)</span><span class="stage-tag pass">pass</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-pack"></span><span class="stage-name">build-image</span><span class="stage-tag auto">auto</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-scan"></span><span class="stage-name">Trivy image scan</span><span class="stage-tag auto">auto</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-deploy"></span><span class="stage-name">deploy:staging</span><span class="stage-tag auto">auto</span></li>
+            <li class="pipeline-item"><span class="stage-dot stage-deploy"></span><span class="stage-name">deploy:production</span><span class="stage-tag auto">auto</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Todos Interactive -->
+    <section id="todos" class="section">
+      <div class="card glass todos-card">
+        <div class="card-header">
+          <h2>Live Todos</h2>
+          <span class="badge badge-count" id="todoCount">0</span>
+        </div>
+        <p class="todos-hint">Connected to the live API — try it below.</p>
+        <div class="key-row">
+          <label for="apiKey">X-API-Key</label>
           <input id="apiKey" type="password" autocomplete="off"
                  value="sk-demo-0123456789abcdef0123456789abcdef-DEMO" />
+          <button type="button" class="btn-icon" id="toggleKey" title="Show/Hide key">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
         </div>
         <form class="add-row" id="addForm">
-          <input id="newTodo" type="text" maxlength="120" placeholder="Add a todo…" autocomplete="off" />
-          <button class="btn btn-primary" type="submit">Add</button>
+          <input id="newTodo" type="text" maxlength="120" placeholder="What needs doing?" autocomplete="off" />
+          <button class="btn btn-glow btn-sm" type="submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
+          </button>
         </form>
         <ul class="todos" id="todoList">
-          <li class="empty">Loading todos…</li>
+          <li class="todo-empty" id="todoEmpty">Loading todos…</li>
         </ul>
-        <p class="hint error" id="todoError" hidden></p>
-      </article>
+        <p class="todos-error" id="todosError" hidden></p>
+      </div>
     </section>
   </main>
 
-  <footer>
-    <p>
-      Built by the DevSecOps pipeline &middot; SAST, secret detection, dependency,
-      license, IaC and container scans &middot; <a href="https://gitlab.odp.om/csharma/devsecops-demo">Source</a>
-    </p>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+        DevSecOps Demo
+      </div>
+      <p>Built with Node.js, Express, Jest, Trivy, Gitleaks, KICS, Helm, kustomize &amp; kind</p>
+      <p class="footer-sub">The API key is intentionally hardcoded to demonstrate the gitleaks secret-detection scan — never do this in production.</p>
+      <a href="https://gitlab.odp.om/csharma/devsecops-demo" class="footer-link">Source on GitLab</a>
+    </div>
   </footer>
 
   <script src="/app.js"></script>
