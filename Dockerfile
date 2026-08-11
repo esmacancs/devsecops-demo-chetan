@@ -12,7 +12,8 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Run as an unprivileged user; keep the FS read-only.
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+# A fixed numeric UID lets kubelet's runAsNonRoot verify the user at runtime.
+RUN addgroup -S appgroup -g 1001 && adduser -S appuser -u 1001 -G appgroup \
     && mkdir -p /app && chown -R appuser:appgroup /app
 
 COPY --from=deps --chown=appuser:appgroup /app/node_modules ./node_modules
@@ -21,7 +22,7 @@ COPY --chown=appuser:appgroup public ./public
 COPY --chown=appuser:appgroup openapi.yaml ./
 COPY --chown=appuser:appgroup package.json package-lock.json ./
 
-USER appuser
+USER 1001
 
 EXPOSE 3000
 
