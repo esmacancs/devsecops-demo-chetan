@@ -69,23 +69,24 @@ fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_$
 unzip_ "$ARCHIVE"; chmod +x "$BIN_DIR/terraform"
 
 # --- gitleaks (secret detection) ---
+# NB: the release URL uses the tag (with "v"), but the asset filename does NOT.
 ARCHIVE="$BIN_DIR/gitleaks.tar.gz"
-fetch "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" "$ARCHIVE"
+fetch "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz" "$ARCHIVE"
 untar "$ARCHIVE"; chmod +x "$BIN_DIR/gitleaks"
 
 # --- trivy (container / fs vulnerability scanner) ---
 ARCHIVE="$BIN_DIR/trivy.tar.gz"
-fetch "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" "$ARCHIVE"
+fetch "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-64bit.tar.gz" "$ARCHIVE"
 untar "$ARCHIVE"; chmod +x "$BIN_DIR/trivy"
 
 # --- tfsec (terraform static analysis) ---
 ARCHIVE="$BIN_DIR/tfsec.tar.gz"
-fetch "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec_${TFSEC_VERSION}_linux_amd64.tar.gz" "$ARCHIVE"
+fetch "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec_${TFSEC_VERSION#v}_linux_amd64.tar.gz" "$ARCHIVE"
 untar "$ARCHIVE"; chmod +x "$BIN_DIR/tfsec"
 
 # --- kics (IaC security) ---
 ARCHIVE="$BIN_DIR/kics.tar.gz"
-fetch "https://github.com/Checkmarx/kics/releases/download/${KICS_VERSION}/kics_${KICS_VERSION}_linux_amd64.tar.gz" "$ARCHIVE"
+fetch "https://github.com/Checkmarx/kics/releases/download/${KICS_VERSION}/kics_${KICS_VERSION#v}_linux_amd64.tar.gz" "$ARCHIVE"
 untar "$ARCHIVE"; chmod +x "$BIN_DIR/kics"
 
 log "installed tools:"
