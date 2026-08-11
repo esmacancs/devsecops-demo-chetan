@@ -82,9 +82,9 @@ log "verifying cluster access..."
 kubectl cluster-info >/dev/null
 
 # ---- make the image visible to the kind nodes ----
-log "loading $IMAGE:$TAG into the kind cluster..."
+log "loading $IMAGE:$TAG into the kind cluster '$KIND_CLUSTER'..."
 docker pull "$IMAGE:$TAG" >/dev/null 2>&1 || true
-kind load docker-image "$IMAGE:$TAG"
+kind load docker-image "$IMAGE:$TAG" --name "$KIND_CLUSTER"
 
 # ---- render the overlay with the exact commit tag (without dirtying the repo) ----
 WORK="$(mktemp -d)"
