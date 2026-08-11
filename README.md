@@ -26,6 +26,8 @@ scans at every stage.
                              │        DAST API (ZAP, manual)               │
                              │ pack.   build & push image (manual)         │
                              │ scan   Trivy image scan (manual)            │
+                             │ pre.   docker-preview: run app on :8080 of  │
+                             │        runner host, eyeball it in browser   │
                              │ deploy  staging / production (manual)       │
                              └──────────────┬───────────────────────────────┘
                                             │
@@ -103,11 +105,27 @@ CLIs are installed on the host — the automatic jobs then just use them.
 | `dast-api` | security | manual | ZAP against deployed URL | report only |
 | `build-image` | package | manual | docker build + push to registry | after provisioning |
 | `container-scanning-image` | scan | manual | Trivy image | report only |
+| `docker-preview` / `docker-preview:stop` | preview | manual | run app in Docker on runner host (:8080) | needs Docker |
 | `deploy:staging` / `deploy:production` | deploy | manual | kubectl + kustomize | after provisioning |
 
 Security jobs are non-blocking (`allow_failure: true` + `|| true`) so the pipeline
 stays green while findings are visible in the **Security tab**. To turn any scan
 into a hard gate, remove the `|| true` and `allow_failure` for that job.
+
+### Preview the app in Docker before deploying
+
+Run the manual **`docker-preview`** job (stage `preview`, runs before `deploy`):
+it builds the image locally and starts the app on **port 8080 of the runner host**
+(`10.0.170.128`). Open it in a browser:
+
+```text
+http://10.0.170.128:8080/          # API info (JSON)
+http://10.0.170.128:8080/health    # health check
+http://10.0.170.128:8080/api/todos # needs header: X-API-Key: sk-demo-0123456789abcdef0123456789abcdef-DEMO
+```
+
+When you are done, run the manual **`docker-preview:stop`** job to remove the
+container.
 
 ### Enable the docker/deploy stages
 

@@ -30,6 +30,7 @@ stages:
   - security
   - package
   - scan
+  - preview
   - deploy
 
 variables:
@@ -214,6 +215,37 @@ container-scanning-image:
     when: always
     paths:
       - gl-container-image-report.json
+
+# ----------------------------------------------------------------------------
+# preview — run the app in Docker on the runner host so you can eyeball it
+# in a browser before deploying to staging/prod. Manual; does not block deploy.
+# ----------------------------------------------------------------------------
+
+# Build the image locally and run it on port 8080 of the runner host.
+# Open http://<runner-ip>:8080/ (and /health) in a browser to see the app.
+docker-preview:
+  stage: preview
+  when: manual
+  only:
+    - main
+  script:
+    - docker build -t "$APP_NAME:preview" .
+    - docker rm -f devsecops-demo-preview >/dev/null 2>&1 || true
+    - docker run -d --name devsecops-demo-preview -p 8080:3000 -e NODE_ENV=production "$APP_NAME:preview"
+    - sleep 3
+    - curl -fsS http://127.0.0.1:8080/health || { docker logs devsecops-demo-preview; exit 1; }
+    - echo "Preview running at http://$(hostname -I | awk '{print $1}'):8080  ->  open / and /health in a browser."
+    - echo "API todos need an X-API-Key header: sk-demo-0123456789abcdef0123456789abcdef-DEMO"
+    - echo "Stop it later with the manual 'docker-preview:stop' job."
+
+# Remove the preview container from the runner host.
+docker-preview:stop:
+  stage: preview
+  when: manual
+  only:
+    - main
+  script:
+    - docker rm -f devsecops-demo-preview >/dev/null 2>&1 && echo "preview container stopped" || echo "no preview container running"
 
 # ----------------------------------------------------------------------------
 # deploy — K8s via kubectl + kustomize (MANUAL; needs KUBE_CONFIG variable)
