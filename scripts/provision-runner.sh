@@ -82,13 +82,26 @@ fi
 docker version >/dev/null 2>&1 && log "docker daemon is up"
 
 # Grant the GitLab runner user access to the docker socket (no sudo needed
-# for pipeline docker jobs), then restart the runner so the new group applies.
-RUNNER_USER="$(find /home -maxdepth 3 -name config.toml -path '*/.gitlab-runner/*' -printf '%u\n' 2>/dev/null | head -n1 || true)"
+# for pipeline docker jobs) and passwordless sudo (needed to re-run this
+# script from CI), then restart the runner so the new group applies.
+RUNNER_USER=""
+for candidate in \
+  "$(stat -c %U /etc/gitlab-runner/config.toml 2>/dev/null)" \
+  "$(find /home -maxdepth 3 -name config.toml -path '*/.gitlab-runner/*' -printf '%u\n' 2>/dev/null | head -n1)" \
+  "$(getent passwd gitlab-runner | cut -d: -f1)" \
+  "$(getent passwd ubuntu | cut -d: -f1)"; do
+  if [ -n "$candidate" ] && [ "$candidate" != "root" ]; then RUNNER_USER="$candidate"; break; fi
+done
 if [ -n "$RUNNER_USER" ]; then
-  log "granting docker access to runner user: $RUNNER_USER"
+  log "runner user detected: $RUNNER_USER"
   usermod -aG docker "$RUNNER_USER" || true
+  log "granting passwordless sudo to $RUNNER_USER"
+  echo "$RUNNER_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/gitlab-runner-ci
+  chmod 440 /etc/sudoers.d/gitlab-runner-ci
   log "restarting gitlab-runner (this may end the current job; installs are already complete)"
   systemctl restart gitlab-runner || true
+else
+  log "could not detect runner user; skipping docker group / sudo grant"
 fi
 
 # ---- CLI tools into /usr/local/bin ----
