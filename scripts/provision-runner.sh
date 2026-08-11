@@ -135,6 +135,39 @@ if ! command -v terraform >/dev/null 2>&1; then
   unzip -o -q /tmp/tf.zip -d /tmp && install /tmp/terraform "$BIN/terraform" && rm -f /tmp/tf.zip /tmp/terraform
 fi
 
+# ---- Security scanners into /usr/local/bin ----
+# These are used by the pipeline's automatic security jobs. Installing them on
+# the host avoids re-downloading ~300 MB on every pipeline (and GitLab's
+# artifact size limit).
+GITLEAKS_VERSION="${GITLEAKS_VERSION:-v8.18.4}"
+TRIVY_VERSION="${TRIVY_VERSION:-v0.73.0}"
+TFSEC_VERSION="${TFSEC_VERSION:-v1.28.5}"
+KICS_VERSION="${KICS_VERSION:-v2.1.20}"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  log "installing gitleaks ${GITLEAKS_VERSION}"
+  curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz" | tar -xz -C /tmp
+  install /tmp/gitleaks "$BIN/gitleaks" && rm -f /tmp/gitleaks
+fi
+
+if ! command -v trivy >/dev/null 2>&1; then
+  log "installing trivy ${TRIVY_VERSION}"
+  curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-64bit.tar.gz" | tar -xz -C /tmp
+  install /tmp/trivy "$BIN/trivy" && rm -f /tmp/trivy
+fi
+
+if ! command -v tfsec >/dev/null 2>&1; then
+  log "installing tfsec ${TFSEC_VERSION}"
+  curl -fsSL "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec_${TFSEC_VERSION#v}_linux_amd64.tar.gz" | tar -xz -C /tmp
+  install /tmp/tfsec "$BIN/tfsec" && rm -f /tmp/tfsec
+fi
+
+if ! command -v kics >/dev/null 2>&1; then
+  log "installing kics ${KICS_VERSION}"
+  curl -fsSL "https://github.com/Checkmarx/kics/releases/download/${KICS_VERSION}/kics_${KICS_VERSION#v}_linux_amd64.tar.gz" | tar -xz -C /tmp
+  install /tmp/kics "$BIN/kics" && rm -f /tmp/kics
+fi
+
 log "provisioning complete. Versions:"
 node --version || true
 npm --version || true
@@ -143,3 +176,7 @@ kubectl version --client --short 2>/dev/null || kubectl version --client || true
 kustomize version 2>/dev/null || true
 helm version --short 2>/dev/null || true
 terraform version 2>/dev/null || true
+gitleaks version 2>/dev/null || true
+trivy --version 2>/dev/null | head -n1 || true
+tfsec version 2>/dev/null || true
+kics version 2>/dev/null || true

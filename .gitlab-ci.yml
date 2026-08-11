@@ -2,14 +2,16 @@
 # DevSecOps Demo — GitLab CI/CD pipeline
 #
 # Executor: shell (opn-prime VM) — no `image:` blocks are used because a shell
-# executor ignores them. All tools are installed inside the pipeline:
+# executor ignores them. Run the manual `provision-runner` job ONCE to install
+# Node.js, Docker and all scanner/deploy CLIs on the runner host (requires
+# passwordless sudo). The automatic jobs below assume those tools exist on the
+# host PATH — no per-pipeline tool downloads.
 #
-#   .pre  bootstrap          -> downloads kubectl/kustomize/helm/terraform/
-#                               gitleaks/trivy/tfsec/kics into .tools/bin
-#                               (no root needed) and shares them as artifacts
 #   .pre  provision-runner   -> MANUAL, root/sudo job that installs Node.js 20,
-#                               npm, Docker Engine + all CLIs on the runner host.
-#                               Run it once to enable the docker/manual jobs.
+#                               npm, Docker Engine, kubectl/kustomize/helm/
+#                               terraform and gitleaks/trivy/tfsec/kics on the
+#                               runner host. Run it once; future pipelines just
+#                               use the tools.
 #
 # Security scans (SAST, secret detection, dependency scanning, license,
 # IaC, container/fs) run automatically on every merge request. They report to
@@ -32,8 +34,6 @@ stages:
 
 variables:
   APP_NAME: devsecops-demo
-  TOOLS_DIR: "$CI_PROJECT_DIR/.tools"
-  BIN_DIR: "$TOOLS_DIR/bin"
   IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
   NODE_CACHE_KEY: "$CI_COMMIT_REF_SLUG"
 
@@ -46,19 +46,11 @@ cache:
     - node_modules/
 
 # ----------------------------------------------------------------------------
-# .pre — bootstrap
+# .pre — provision (MANUAL, one-time) + prep
 # ----------------------------------------------------------------------------
 
-bootstrap:
-  stage: .pre
-  script:
-    - bash scripts/install-tools.sh "$TOOLS_DIR"
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - .tools/
-
-# Run ONCE to install Docker Engine + CLIs on the runner host (requires sudo).
+# Run ONCE to install Node.js 20, Docker Engine, scanner and deploy CLIs on the
+# runner host (requires passwordless sudo for the runner user).
 provision-runner:
   stage: .pre
   when: manual
@@ -90,7 +82,7 @@ test:
 # SAST — ESLint with eslint-plugin-security
 sast-eslint:
   stage: security
-  needs: [bootstrap, test]
+  needs: [test]
   script:
     - npm ci
     - npm run sast || true
@@ -103,9 +95,7 @@ sast-eslint:
 # Secret detection — gitleaks
 secret-detection:
   stage: security
-  needs: [bootstrap]
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - gitleaks detect --source . --report-format json --report-path gl-secret-detection-report.json --no-banner || true
   artifacts:
     when: always
@@ -116,7 +106,6 @@ secret-detection:
 # Dependency scanning — npm audit + Retire.js
 dependency-scanning:
   stage: security
-  needs: [bootstrap]
   script:
     - npm ci
     - npm audit --json > gl-dependency-scanning-report.json || true
@@ -131,7 +120,6 @@ dependency-scanning:
 # License compliance
 license-compliance:
   stage: security
-  needs: [bootstrap]
   script:
     - npm ci
     - npx license-checker --json > gl-license-scanning-report.json || true
@@ -144,9 +132,7 @@ license-compliance:
 # IaC scanning — KICS (terraform + k8s manifests)
 sast-iac-kics:
   stage: security
-  needs: [bootstrap]
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - kics scan -p . -o . --report-formats json --output-name gl-sast-iac --quiet || true
   artifacts:
     when: always
@@ -157,9 +143,7 @@ sast-iac-kics:
 # IaC scanning — tfsec (terraform)
 sast-iac-tfsec:
   stage: security
-  needs: [bootstrap]
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - tfsec terraform --format json --out gl-tfsec-report.json || true
   artifacts:
     when: always
@@ -171,9 +155,7 @@ sast-iac-tfsec:
 # Full image scan (container-scanning-image) runs after build-image.
 container-scanning-fs:
   stage: security
-  needs: [bootstrap]
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - trivy fs --format json --exit-code 0 --output gl-container-scanning-report.json .
   artifacts:
     when: always
@@ -203,7 +185,6 @@ dast-api:
 build-image:
   stage: package
   when: manual
-  needs: [bootstrap]
   only:
     - main
   script:
@@ -219,11 +200,10 @@ container-scanning-image:
   stage: scan
   when: manual
   allow_failure: true
-  needs: [bootstrap, build-image]
+  needs: [build-image]
   only:
     - main
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - docker pull "$IMAGE_TAG"
     - trivy image --format json --exit-code 0 --output gl-container-image-report.json "$IMAGE_TAG" || true
@@ -247,7 +227,6 @@ deploy:staging:
     name: staging
     url: https://staging.example.com
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - kubectl apply -k k8s/overlays/staging
     - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s
 
@@ -261,6 +240,5 @@ deploy:production:
     name: production
     url: https://app.example.com
   script:
-    - export PATH="$BIN_DIR:$PATH"
     - kubectl apply -k k8s/overlays/production
     - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s

@@ -14,8 +14,8 @@ scans at every stage.
   Merge request ─────────────►│              GitLab CI/CD                   │
                              │  (shell executor: opn-prime VM)             │
                              ├──────────────────────────────────────────────┤
-                             │ .pre   bootstrap          (installs tools)   │
-                             │        provision-runner  (manual: Node/Docker)│
+                             │ .pre   provision-runner  (manual, one-time: │
+                             │        installs Node, Docker, scanners, CLIs)│
                              │ test   jest unit/integration + coverage     │
                              │ sec.   SAST (eslint)                        │
                              │        Secret detection (gitleaks)          │
@@ -85,13 +85,13 @@ docker run --rm -p 3000:3000 devsecops-demo
 
 ## CI/CD pipeline
 
-The pipeline assumes a **shell executor** (GitLab runner on the `opn-prime` VM). The
-pipeline bootstraps all its own tooling — no host prerequisites beyond git.
+The pipeline assumes a **shell executor** (GitLab runner on the `opn-prime` VM). Run
+the one-time **`provision-runner`** job so Node.js, Docker and the scanner/deploy
+CLIs are installed on the host — the automatic jobs then just use them.
 
 | Job | Stage | Runs | Tool | Gating |
 |-----|-------|------|------|--------|
-| `bootstrap` | `.pre` | always | install-tools.sh | required |
-| `provision-runner` | `.pre` | manual | installs Node.js 20, npm, Docker + CLIs | requires sudo |
+| `provision-runner` | `.pre` | manual (once) | installs Node.js 20, npm, Docker, kubectl, kustomize, helm, terraform, gitleaks, trivy, tfsec, kics | requires sudo |
 | `test` | test | always | jest + supertest | hard |
 | `sast-eslint` | security | always | ESLint + eslint-plugin-security | report only |
 | `secret-detection` | security | always | gitleaks | report only |
@@ -111,9 +111,10 @@ into a hard gate, remove the `|| true` and `allow_failure` for that job.
 
 ### Enable the docker/deploy stages
 
-1. Run **`provision-runner`** once (it requires `sudo` on the runner host) — installs
-   Node.js 20, npm, Docker Engine, kubectl, kustomize, helm and terraform, and grants
-   the runner user docker access.
+1. Run **`provision-runner`** once (requires passwordless sudo for the runner user)
+   — installs Node.js 20, npm, Docker Engine, kubectl, kustomize, helm, terraform
+   and the gitleaks/trivy/tfsec/kics scanners, and grants the runner user docker
+   + sudo access.
 2. Add the `KUBE_CONFIG` CI variable (base64 kubeconfig for your cluster).
 3. Set `DAST_TARGET_URL` to run the ZAP API scan against a deployed instance.
 
@@ -127,7 +128,9 @@ npm run licenses      # license compliance
 npm run secrets       # gitleaks secret detection (requires gitleaks in PATH)
 ```
 
-`gitleaks` is installed by `scripts/install-tools.sh` into `.tools/bin`.
+`gitleaks` (and the other scanners) are installed on the runner host by
+`scripts/provision-runner.sh`. `scripts/install-tools.sh` is an optional fallback
+that downloads them into a local `.tools/bin` directory without root.
 
 ## Security
 
