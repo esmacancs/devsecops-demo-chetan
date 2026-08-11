@@ -53,7 +53,7 @@ echo
 log "health check passed"
 
 log "checking homepage title..."
-curl -fsS --max-time 10 "$BASE_URL/" | grep -qi "<title>Coffee Shop"
+curl -fsS --max-time 10 -H "Accept: text/html" "$BASE_URL/" | grep -qi "<title>Coffee Shop"
 log "homepage check passed"
 
 log "smoke test PASSED for $ENV_NAME"
