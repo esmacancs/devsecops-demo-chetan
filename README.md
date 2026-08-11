@@ -45,7 +45,8 @@ scans at every stage.
 ├── .gitlab-ci.yml            # Full DevSecOps pipeline
 ├── scripts/
 │   ├── install-tools.sh      # Downloads scanner/deploy CLIs (no root)
-│   └── provision-runner.sh   # Installs Node.js, Docker + CLIs on runner (sudo)
+│   ├── provision-runner.sh   # Installs Node.js, Docker + CLIs on runner (sudo)
+│   └── docker-preview.sh     # Runs the app on the runner host (:8080) for a visual check
 ├── src/                      # Express API (app, routes, middleware, store)
 ├── tests/                    # Jest + supertest unit/integration tests
 ├── openapi.yaml              # API contract, consumed by DAST API scan

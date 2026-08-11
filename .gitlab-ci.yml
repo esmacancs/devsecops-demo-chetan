@@ -229,14 +229,7 @@ docker-preview:
   only:
     - main
   script:
-    - docker build -t "$APP_NAME:preview" .
-    - docker rm -f devsecops-demo-preview >/dev/null 2>&1 || true
-    - docker run -d --name devsecops-demo-preview -p 8080:3000 -e NODE_ENV=production "$APP_NAME:preview"
-    - sleep 3
-    - curl -fsS http://127.0.0.1:8080/health || { docker logs devsecops-demo-preview; exit 1; }
-    - echo "Preview running at http://$(hostname -I | awk '{print $1}'):8080  ->  open / and /health in a browser."
-    - echo "API todos need an X-API-Key header: sk-demo-0123456789abcdef0123456789abcdef-DEMO"
-    - echo "Stop it later with the manual 'docker-preview:stop' job."
+    - bash scripts/docker-preview.sh
 
 # Remove the preview container from the runner host.
 docker-preview:stop:
