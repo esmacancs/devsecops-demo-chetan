@@ -38,6 +38,28 @@ describe('app basics', () => {
     const res = await request(app).get('/');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
+
+  test('serves the web portal for HTML requests', async () => {
+    const res = await request(app).get('/').set('Accept', 'text/html');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('DevSecOps Demo');
+  });
+
+  test('serves portal static assets', async () => {
+    const css = await request(app).get('/styles.css');
+    expect(css.status).toBe(200);
+    expect(css.headers['content-type']).toMatch(/css/);
+
+    const js = await request(app).get('/app.js');
+    expect(js.status).toBe(200);
+  });
+
+  test('serves the OpenAPI spec', async () => {
+    const res = await request(app).get('/openapi.yaml');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('openapi: 3.0.3');
+  });
 });
 
 describe('todos API', () => {

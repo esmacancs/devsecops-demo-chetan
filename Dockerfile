@@ -17,6 +17,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
 
 COPY --from=deps --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --chown=appuser:appgroup src ./src
+COPY --chown=appuser:appgroup public ./public
+COPY --chown=appuser:appgroup openapi.yaml ./
 COPY --chown=appuser:appgroup package.json package-lock.json ./
 
 USER appuser

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevSecOps Demo — Portal</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">&#128737;</div>
+      <div>
+        <div class="brand-name">DevSecOps Demo</div>
+        <div class="brand-sub">Node.js &middot; Express &middot; CI/CD &middot; Security</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#status">Status</a>
+      <a href="#endpoints">Endpoints</a>
+      <a href="#todos">Todos</a>
+      <a class="badge-pill" href="openapi.yaml">OpenAPI</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Beautiful portal for a secure API</h1>
+      <p>
+        This page is served straight from the container. It is a living proof that the
+        image built, scanned and deployed by the DevSecOps pipeline works end to end.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#todos">Try the Todos API</a>
+        <a class="btn btn-ghost" href="#endpoints">View endpoints</a>
+      </div>
+    </section>
+
+    <section id="status" class="cards">
+      <article class="card">
+        <div class="card-icon">&#129690;</div>
+        <div class="card-label">API status</div>
+        <div class="card-value"><span class="dot ok" id="apiStatusDot"></span><span id="apiStatus">checking…</span></div>
+      </article>
+      <article class="card">
+        <div class="card-icon">&#128138;</div>
+        <div class="card-label">Health</div>
+        <div class="card-value" id="healthValue">checking…</div>
+      </article>
+      <article class="card">
+        <div class="card-icon">&#9201;</div>
+        <div class="card-label">Uptime</div>
+        <div class="card-value mono" id="uptimeValue">&mdash;</div>
+      </article>
+      <article class="card">
+        <div class="card-icon">&#128272;</div>
+        <div class="card-label">Version</div>
+        <div class="card-value mono" id="versionValue">1.0.0</div>
+      </article>
+    </section>
+
+    <section id="endpoints" class="split">
+      <article class="panel">
+        <h2>API endpoints</h2>
+        <ul class="endpoints">
+          <li><span class="method get">GET</span><code>/</code><span class="desc">service info</span></li>
+          <li><span class="method get">GET</span><code>/health</code><span class="desc">health check</span></li>
+          <li><span class="method get">GET</span><code>/api/todos</code><span class="desc">list todos</span></li>
+          <li><span class="method post">POST</span><code>/api/todos</code><span class="desc">create todo</span></li>
+          <li><span class="method put">PUT</span><code>/api/todos/:id</code><span class="desc">update todo</span></li>
+          <li><span class="method delete">DELETE</span><code>/api/todos/:id</code><span class="desc">delete todo</span></li>
+        </ul>
+        <h3>Try it from the terminal</h3>
+        <pre class="code">curl http://localhost:3000/health
+curl -H "X-API-Key: $KEY" http://localhost:3000/api/todos</pre>
+        <p class="hint">Authenticated routes require the <code>X-API-Key</code> header (see the Todos panel).</p>
+      </article>
+
+      <article id="todos" class="panel">
+        <h2>Todos <span class="pill" id="todoCount">0</span></h2>
+        <div class="field">
+          <label for="apiKey">API key (X-API-Key)</label>
+          <input id="apiKey" type="password" autocomplete="off"
+                 value="sk-demo-0123456789abcdef0123456789abcdef-DEMO" />
+        </div>
+        <form class="add-row" id="addForm">
+          <input id="newTodo" type="text" maxlength="120" placeholder="Add a todo…" autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Add</button>
+        </form>
+        <ul class="todos" id="todoList">
+          <li class="empty">Loading todos…</li>
+        </ul>
+        <p class="hint error" id="todoError" hidden></p>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Built by the DevSecOps pipeline &middot; SAST, secret detection, dependency,
+      license, IaC and container scans &middot; <a href="https://gitlab.odp.om/csharma/devsecops-demo">Source</a>
+    </p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

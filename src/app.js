@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -10,13 +11,24 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+
 app.set('trust proxy', config.trustProxy ? 1 : false);
 
 app.use(helmet());
 app.use(morgan(config.env === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '100kb' }));
 
+// Serve the OpenAPI spec from the repo root so the portal can link to it.
+app.get('/openapi.yaml', (req, res) => {
+  res.type('application/yaml').sendFile(path.join(__dirname, '..', 'openapi.yaml'));
+});
+
 app.get('/', (req, res) => {
+  // Browsers asking for HTML get the portal; API clients keep getting JSON.
+  if ((req.get('Accept') || '').includes('text/html')) {
+    return res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+  }
   res.json({
     name: 'DevSecOps Demo API',
     version: '1.0.0',
@@ -30,6 +42,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/todos', authenticate, todosRouter);
+
+app.use(express.static(PUBLIC_DIR));
 
 app.use((req, res) => res.status(404).json({ error: 'Not Found' }));
 

@@ -37,7 +37,7 @@ log "health check OK"
 
 HOST_IP="$(hostname -I | awk '{print $1}')"
 log "preview running at http://$HOST_IP:$PORT"
-log "  /          -> API info"
+log "  /          -> web portal (open in a browser)"
 log "  /health    -> health check"
 log "  /api/todos -> needs header: X-API-Key: sk-demo-0123456789abcdef0123456789abcdef-DEMO"
 log "stop it later with the manual 'docker-preview:stop' job."
