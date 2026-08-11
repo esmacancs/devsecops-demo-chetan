@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+coverage
+tests
+k8s
+terraform
+scripts
+docs
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+LICENSE
+README.md
+SECURITY.md
+openapi.yaml
+*.md

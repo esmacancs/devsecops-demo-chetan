@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devsecops-demo
+  namespace: devsecops-demo
+  labels:
+    app.kubernetes.io/name: devsecops-demo
+    app.kubernetes.io/part-of: devsecops-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: devsecops-demo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: devsecops-demo
+    spec:
+      serviceAccountName: devsecops-demo
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: devsecops-demo
+          image: registry.gitlab.com/csharma/devsecops-demo:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: devsecops-demo-config
+                  key: NODE_ENV
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: devsecops-demo-config
+                  key: PORT
+            - name: MAX_TODOS
+              valueFrom:
+                configMapKeyRef:
+                  name: devsecops-demo-config
+                  key: MAX_TODOS
+            - name: TRUST_PROXY
+              valueFrom:
+                configMapKeyRef:
+                  name: devsecops-demo-config
+                  key: TRUST_PROXY
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: devsecops-demo-api-key
+                  key: api-key
+                  optional: true
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5

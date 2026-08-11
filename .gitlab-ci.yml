@@ -1,0 +1,266 @@
+# ============================================================================
+# DevSecOps Demo — GitLab CI/CD pipeline
+#
+# Executor: shell (opn-prime VM) — no `image:` blocks are used because a shell
+# executor ignores them. All tools are installed inside the pipeline:
+#
+#   .pre  bootstrap          -> downloads kubectl/kustomize/helm/terraform/
+#                               gitleaks/trivy/tfsec/kics into .tools/bin
+#                               (no root needed) and shares them as artifacts
+#   .pre  provision-runner   -> MANUAL, root/sudo job that installs Node.js 20,
+#                               npm, Docker Engine + all CLIs on the runner host.
+#                               Run it once to enable the docker/manual jobs.
+#
+# Security scans (SAST, secret detection, dependency scanning, license,
+# IaC, container/fs) run automatically on every merge request. They report to
+# the Security tab and are set to allow_failure so the pipeline stays green
+# while you inspect findings. Flip *_FAIL_ON_ISSUES to "true" (or remove the
+# `|| true` / allow_failure) to make them hard gates.
+#
+# Container build/scan and deployments are MANUAL jobs so the default pipeline
+# is green on a bare node+git runner. Once Docker/kubectl are on the host
+# (provision-runner), trigger them manually.
+# ============================================================================
+
+stages:
+  - .pre
+  - test
+  - security
+  - package
+  - deploy
+
+variables:
+  APP_NAME: devsecops-demo
+  TOOLS_DIR: "$CI_PROJECT_DIR/.tools"
+  BIN_DIR: "$TOOLS_DIR/bin"
+  IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  NODE_CACHE_KEY: "$CI_COMMIT_REF_SLUG"
+
+# Share the npm cache across jobs (shell executor)
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - node_modules/
+
+# ----------------------------------------------------------------------------
+# .pre — bootstrap
+# ----------------------------------------------------------------------------
+
+bootstrap:
+  stage: .pre
+  script:
+    - bash scripts/install-tools.sh "$TOOLS_DIR"
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - .tools/
+
+# Run ONCE to install Docker Engine + CLIs on the runner host (requires sudo).
+provision-runner:
+  stage: .pre
+  when: manual
+  script:
+    - bash scripts/provision-runner.sh
+
+# ----------------------------------------------------------------------------
+# test — unit & integration
+# ----------------------------------------------------------------------------
+
+test:
+  stage: test
+  needs: []
+  script:
+    - npm ci
+    - npm test
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths:
+      - coverage/
+      - junit.xml
+
+# ----------------------------------------------------------------------------
+# security — automatic scans (report to Security tab, non-blocking)
+# ----------------------------------------------------------------------------
+
+# SAST — ESLint with eslint-plugin-security
+sast-eslint:
+  stage: security
+  needs: [bootstrap, test]
+  script:
+    - npm ci
+    - npm run sast || true
+  artifacts:
+    when: always
+    paths:
+      - gl-sast-report.json
+  allow_failure: true
+
+# Secret detection — gitleaks
+secret-detection:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - gitleaks detect --source . --report-format json --report-path gl-secret-detection-report.json --no-banner || true
+  artifacts:
+    when: always
+    paths:
+      - gl-secret-detection-report.json
+  allow_failure: true
+
+# Dependency scanning — npm audit + Retire.js
+dependency-scanning:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - npm ci
+    - npm audit --json > gl-dependency-scanning-report.json || true
+    - npx retire --severity high --outputformat json --outputpath retire-report.json || true
+  artifacts:
+    when: always
+    paths:
+      - gl-dependency-scanning-report.json
+      - retire-report.json
+  allow_failure: true
+
+# License compliance
+license-compliance:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - npm ci
+    - npx license-checker --json > gl-license-scanning-report.json || true
+  artifacts:
+    when: always
+    paths:
+      - gl-license-scanning-report.json
+  allow_failure: true
+
+# IaC scanning — KICS (terraform + k8s manifests)
+sast-iac-kics:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - kics scan -p . -o . --report-formats json --output-name gl-sast-iac --quiet || true
+  artifacts:
+    when: always
+    paths:
+      - gl-sast-iac.json
+  allow_failure: true
+
+# IaC scanning — tfsec (terraform)
+sast-iac-tfsec:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - tfsec terraform --format json --out gl-tfsec-report.json || true
+  artifacts:
+    when: always
+    paths:
+      - gl-tfsec-report.json
+  allow_failure: true
+
+# Container scanning (filesystem mode) — Trivy, no Docker required.
+# Full image scan (container-scanning-image) runs after build-image.
+container-scanning-fs:
+  stage: security
+  needs: [bootstrap]
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - trivy fs --format json --exit-code 0 --output gl-container-scanning-report.json .
+  artifacts:
+    when: always
+    paths:
+      - gl-container-scanning-report.json
+  allow_failure: true
+
+# DAST API — ZAP against a deployed instance. Requires Docker + a reachable URL.
+# 1) deploy to staging  2) set DAST_TARGET_URL (CI variable / run variable)
+# 3) run this job manually.
+dast-api:
+  stage: security
+  when: manual
+  allow_failure: true
+  script:
+    - test -n "$DAST_TARGET_URL" || (echo "Set DAST_TARGET_URL, e.g. https://staging.example.com"; exit 1)
+    - docker run --rm -v "$CI_PROJECT_DIR:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable
+        zap-api-scan.py -t /zap/wrk/openapi.yaml -f openapi -r /zap/wrk/gl-dast-report.html
+        -z "-X $DAST_TARGET_URL" || true
+  artifacts:
+    when: always
+    paths:
+      - gl-dast-report.html
+
+# ----------------------------------------------------------------------------
+# package — build & push container image (MANUAL until Docker is provisioned)
+# ----------------------------------------------------------------------------
+
+build-image:
+  stage: package
+  when: manual
+  needs: [bootstrap]
+  only:
+    - main
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t "$IMAGE_TAG" .
+    - docker push "$IMAGE_TAG"
+    - docker tag "$IMAGE_TAG" "$CI_REGISTRY_IMAGE:latest"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
+
+# Full container image vulnerability scan (needs Docker + built image)
+container-scanning-image:
+  stage: security
+  when: manual
+  allow_failure: true
+  needs: [bootstrap, build-image]
+  only:
+    - main
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker pull "$IMAGE_TAG"
+    - trivy image --format json --exit-code 0 --output gl-container-image-report.json "$IMAGE_TAG" || true
+    - trivy image --severity HIGH,CRITICAL --exit-code 0 "$IMAGE_TAG" || true
+  artifacts:
+    when: always
+    paths:
+      - gl-container-image-report.json
+
+# ----------------------------------------------------------------------------
+# deploy — K8s via kubectl + kustomize (MANUAL; needs KUBE_CONFIG variable)
+# ----------------------------------------------------------------------------
+
+deploy:staging:
+  stage: deploy
+  when: manual
+  needs: [build-image]
+  only:
+    - main
+  environment:
+    name: staging
+    url: https://staging.example.com
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - kubectl apply -k k8s/overlays/staging
+    - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s
+
+deploy:production:
+  stage: deploy
+  when: manual
+  needs: [build-image]
+  only:
+    - main
+  environment:
+    name: production
+    url: https://app.example.com
+  script:
+    - export PATH="$BIN_DIR:$PATH"
+    - kubectl apply -k k8s/overlays/production
+    - kubectl rollout status deployment/devsecops-demo -n devsecops-demo --timeout=180s

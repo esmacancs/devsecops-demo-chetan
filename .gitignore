@@ -1,0 +1,27 @@
+node_modules/
+coverage/
+dist/
+.tools/
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# reports produced by CI security jobs
+gl-*.json
+junit.xml
+retire-report.json
+
+# terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/crash.log
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,23 @@
+# Local pre-commit hooks (requires pre-commit + gitleaks available on the dev machine)
+#   pip install pre-commit
+#   pre-commit install
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (SAST)
+        entry: npx eslint src tests
+        language: system
+        files: \.(js)$
+
+      - id: npm-audit
+        name: npm audit (dependency scan)
+        entry: npm audit --audit-level=high
+        language: system
+        files: package-lock.json
+        pass_filenames: false
