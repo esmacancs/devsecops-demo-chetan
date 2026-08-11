@@ -28,13 +28,16 @@ by a full suite of automated security scans at every stage.
                               │        DAST API (ZAP, manual)               │
                               │ pack.   build & push image  (main, auto)    │
                               │ scan   Trivy image scan     (main, auto)    │
-                              │ deploy  staging + production (main, auto)   │
+                              │ deploy  staging             (main, auto)    │
+                              │ verify  smoke-test staging  (main, auto)    │
+                              │ promote production          (manual gate)   │
                               └──────────────┬───────────────────────────────┘
                                              │
                           ┌──────────────────▼──────────────────┐
                           │  Docker image → registry             │
                           │  kind load → kind cluster on the    │
-                          │  runner host (NodePort :30080)       │
+                          │  runner host                        │
+                          │  staging :30081 | production :30080  │
                           └──────────────────────────────────────┘
 ```
 
@@ -47,6 +50,7 @@ by a full suite of automated security scans at every stage.
 │   ├── install-tools.sh      # Downloads scanner/deploy CLIs (no root)
 │   ├── provision-runner.sh   # Installs Node.js, Docker, kind + CLIs on runner (sudo)
 │   ├── deploy.sh             # Loads image into kind + kubectl/kustomize apply
+│   ├── smoke-test.sh         # Rollout + HTTP health/title checks per env
 │   └── docker-preview.sh     # Runs the app on the runner host (:8080) for a visual check
 ├── src/                      # Express server (app, config, error handler)
 ├── public/                   # Coffee Shop site (index.html, assits/, img/)
@@ -55,7 +59,7 @@ by a full suite of automated security scans at every stage.
 ├── Dockerfile                # Multi-stage, non-root, read-only FS
 ├── k8s/
 │   ├── base/                 # Kustomize base (deployment, service, ingress…)
-│   └── overlays/             # staging + production patches
+│   └── overlays/             # staging + production (namePrefix isolates them)
 ├── terraform/                # AWS ECR + EKS as code (tfsec/KICS scanned)
 └── .pre-commit-config.yaml   # Local hooks (gitleaks, eslint)
 ```
@@ -112,7 +116,9 @@ CLIs are installed on the host — the automatic jobs then just use them.
 | `build-image` | package | `main` (auto) | docker build + push to registry | after provisioning |
 | `container-scanning-image` | scan | `main` (auto) | Trivy image | report only |
 | `docker-preview` / `docker-preview:stop` | preview | manual | run app in Docker on runner host (:8080) | needs Docker |
-| `deploy:staging` / `deploy:production` | deploy | `main` (auto) | kind load + kubectl + kustomize | after provisioning |
+| `deploy:staging` | deploy | `main` (auto) | kind load + kubectl + kustomize | after provisioning |
+| `smoke-test` | verify | `main` (auto) | rollout status + HTTP health/title check on staging | hard gate before promote |
+| `deploy:production` | promote | `main` (manual) | kind load + kubectl + kustomize | only after smoke-test passes |
 
 Security jobs are non-blocking (`allow_failure: true` + `|| true`) so the pipeline
 stays green while findings are visible in the **Security tab**. To turn any scan
@@ -149,13 +155,19 @@ container.
    `KUBE_CONFIG` CI variable containing the cluster's kubeconfig (file type).
 4. Set `DAST_TARGET_URL` to run the ZAP API scan against a deployed instance.
 
-> On every push to `main`, the pipeline now runs end to end with **no manual
-> intervention**: test → security scans → build & push image → Trivy image scan →
-> `deploy:staging` → `deploy:production`. Both deploys target the kind cluster on
-> the runner host: `scripts/deploy.sh` loads the exact commit image into kind and
-> applies the overlay. The site is reachable at
-> `http://10.0.170.128:30080/` (NodePort; Coffee Shop) and
-> `http://10.0.170.128:30080/health`.
+> On every push to `main`, the pipeline runs **automatically up to staging, then
+> gates**: test → security scans → build & push image → Trivy image scan →
+> `deploy:staging` → `smoke-test` (verifies staging) → **`deploy:production` is a
+> manual promotion** that only becomes available after the staging smoke test
+> passes. Staging and production are fully segregated on the same kind cluster —
+> the overlays prefix every resource, so you get separate namespaces, deployments
+> and pod names (`staging-devsecops-demo-*` vs `production-devsecops-demo-*`):
+>
+> ```text
+> staging:    http://10.0.170.128:30081/   (NodePort; Coffee Shop)
+> production: http://10.0.170.128:30080/   (NodePort; Coffee Shop)
+> http://10.0.170.128:30080/health
+> ```
 
 ### Local security checks (pre-push)
 

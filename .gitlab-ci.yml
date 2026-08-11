@@ -19,12 +19,17 @@
 # while you inspect findings. Flip *_FAIL_ON_ISSUES to "true" (or remove the
 # `|| true` / allow_failure) to make them hard gates.
 #
-# On `main`, the pipeline is FULLY AUTOMATED with no manual intervention:
+# On `main`, the pipeline is automated up to staging, then gated:
 #   test -> security scans -> build & push image -> Trivy image scan
-#        -> deploy:staging -> deploy:production (both to the kind cluster
-#           that runs on this same host, exposed via NodePort 30080).
+#        -> deploy:staging -> smoke-test (verify staging)
+#        -> deploy:production (MANUAL: promote only after staging passed).
 #
-# The two deploy jobs load the built image into kind and `kubectl apply` the
+# Staging and production are fully segregated: the kustomize overlays prefix all
+# resources (namespace/deployment/service) so pod names are
+# `staging-devsecops-demo-*` vs `production-devsecops-demo-*`, exposed on
+# NodePort 30081 (staging) and 30080 (production).
+#
+# The deploy jobs load the built image into kind and `kubectl apply` the
 # staging/production kustomize overlays (scripts/deploy.sh). They need kubectl
 # to reach the cluster: set the KUBE_CONFIG CI variable to the content of the
 # kind cluster's ~/.kube/config, or let provision-runner copy it from
@@ -42,6 +47,8 @@ stages:
   - scan
   - preview
   - deploy
+  - verify
+  - promote
 
 variables:
   APP_NAME: devsecops-demo
@@ -249,9 +256,9 @@ docker-preview:stop:
     - docker rm -f devsecops-demo-preview >/dev/null 2>&1 && echo "preview container stopped" || echo "no preview container running"
 
 # ----------------------------------------------------------------------------
-# deploy — automatic K8s deploy to the kind cluster on this runner host.
-# scripts/deploy.sh loads the image into kind, pins the exact commit tag and
-# applies the overlay via kubectl + kustomize. No manual intervention on main.
+# deploy + verify + promote — automatic staging deploy on main, then a manual
+# promotion gate for production. scripts/deploy.sh loads the image into kind,
+# pins the exact commit tag and applies the overlay via kubectl + kustomize.
 # ----------------------------------------------------------------------------
 
 deploy:staging:
@@ -261,13 +268,30 @@ deploy:staging:
     - main
   environment:
     name: staging
-    url: http://10.0.170.128:30080
+    url: http://10.0.170.128:30081
   script:
     - bash scripts/deploy.sh staging
 
+# Gate between staging and production: runs automatically after deploy:staging.
+# If this fails, the pipeline is blocked and deploy:production can't be run.
+smoke-test:
+  stage: verify
+  needs: [deploy:staging]
+  only:
+    - main
+  environment:
+    name: staging
+    action: verify
+  script:
+    - bash scripts/smoke-test.sh staging
+
+# Promotion is manual: it only appears once deploy:staging AND smoke-test
+# succeed on main, and requires a human click to run.
 deploy:production:
-  stage: deploy
-  needs: [build-image]
+  stage: promote
+  needs: [smoke-test]
+  when: manual
+  allow_failure: false
   only:
     - main
   environment:

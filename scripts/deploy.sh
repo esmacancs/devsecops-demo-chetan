@@ -29,8 +29,10 @@ esac
 
 IMAGE="${CI_REGISTRY_IMAGE:-registry.gitlab.com/csharma/devsecops-demo}"
 TAG="${CI_COMMIT_SHORT_SHA:?CI_COMMIT_SHORT_SHA is not set}"
-NAMESPACE="devsecops-demo"
-DEPLOYMENT="devsecops-demo"
+# namePrefix in the overlays gives each environment its own namespace, deployment
+# and pod names, so staging and production are fully isolated on the same cluster.
+NAMESPACE="${ENV_NAME}-devsecops-demo"
+DEPLOYMENT="${ENV_NAME}-devsecops-demo"
 KIND_CLUSTER="${KIND_CLUSTER:-demo-cluster}"
 
 log() { echo "[deploy:$ENV_NAME] $*"; }
