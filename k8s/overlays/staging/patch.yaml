@@ -5,8 +5,3 @@ metadata:
   namespace: devsecops-demo
 spec:
   replicas: 1
-  template:
-    spec:
-      containers:
-        - name: devsecops-demo
-          image: registry.gitlab.com/csharma/devsecops-demo:latest
