@@ -63,5 +63,11 @@ for (const run of doc.runs || []) {
 }
 
 if (changed) {
-  fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+  // Write via a sibling temp file + rename: scanners running as root in a
+  // container may leave the SARIF owned by root, so an in-place rewrite fails
+  // with EACCES for the runner user. Renaming only needs write permission on
+  // the directory (which the runner owns).
+  const tmp = `${file}.fix.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(doc, null, 2));
+  fs.renameSync(tmp, file);
 }
