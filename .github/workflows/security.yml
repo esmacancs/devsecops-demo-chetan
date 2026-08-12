@@ -1,0 +1,188 @@
+# ============================================================================
+# DevSecOps Demo — GitHub Actions security scans (Code scanning)
+#
+# GitHub-side equivalent of .gitlab-ci.yml's security stage. GitHub does NOT
+# run GitLab CI, so the same scanners are re-run here on GitHub-hosted
+# ubuntu runners and their SARIF output is uploaded to GitHub Code scanning
+# (Security tab → Code scanning alerts) via github/codeql-action/upload-sarif.
+#
+# Coverage mapping vs the GitLab pipeline:
+#   sast-eslint            -> eslint + @microsoft/eslint-formatter-sarif
+#   secret-detection       -> gitleaks (SARIF)
+#   dependency-scanning    -> npm audit -> scripts/npm-audit-to-sarif.js
+#                             (GitHub Dependabot alerts cover dependencies
+#                              natively as well)
+#   sast-iac-kics          -> KICS (docker image, SARIF)
+#   sast-iac-tfsec         -> tfsec (docker image, SARIF)
+#   container-scanning-fs  -> trivy fs (SARIF)
+#   container-scanning-image -> trivy image on main only (build + scan, SARIF)
+#
+# Not ported: license-compliance (no SARIF target in GitHub), dast-api and the
+# staging/production deploy+promote jobs (they target the private GitLab k8s
+# infra and registry.odp.om).
+#
+# All scan jobs are continue-on-error so a finding never fails CI; findings
+# are surfaced in the Code scanning alerts instead. GITHUB_TOKEN needs the
+# security-events: write permission to upload SARIF.
+# ============================================================================
+
+name: Security scans (Code scanning)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast-eslint:
+    name: SAST (ESLint)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run sast || true
+      - run: test -s gl-sast-report.json || printf '%s' '{"version":"2.1.0","runs":[]}' > gl-sast-report.json
+      - name: Upload ESLint SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-sast-report.json
+          category: eslint-sast
+
+  secret-detection:
+    name: Secret detection (gitleaks)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.4_linux_x64.tar.gz
+          ./gitleaks detect --source . --report-format sarif --report-path gl-secret-detection-report.json --no-banner || true
+      - run: test -s gl-secret-detection-report.json || printf '%s' '{"version":"2.1.0","runs":[]}' > gl-secret-detection-report.json
+      - name: Upload gitleaks SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-secret-detection-report.json
+          category: gitleaks
+
+  dependency-scanning:
+    name: Dependency scanning (npm audit)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit
+        run: npm audit --json > gl-npm-audit.json || true
+      - name: Convert to SARIF
+        run: node scripts/npm-audit-to-sarif.js gl-npm-audit.json gl-npm-audit.sarif || true
+      - run: test -s gl-npm-audit.sarif || printf '%s' '{"version":"2.1.0","runs":[]}' > gl-npm-audit.sarif
+      - name: Upload npm audit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-npm-audit.sarif
+          category: npm-audit
+
+  sast-iac-kics:
+    name: IaC scan (KICS)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run KICS
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/path" checkmarx/kics:latest scan -p /path -o /path --report-formats sarif,json --output-name gl-sast-iac || true
+      - run: test -s gl-sast-iac.sarif || printf '%s' '{"version":"2.1.0","runs":[]}' > gl-sast-iac.sarif
+      - name: Upload KICS SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-sast-iac.sarif
+          category: kics
+
+  sast-iac-tfsec:
+    name: IaC scan (tfsec)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tfsec
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" aquasec/tfsec:latest /src/terraform --format sarif --out /src/gl-tfsec-report.json || true
+      - run: test -s gl-tfsec-report.json || printf '%s' '{"version":"2.1.0","runs":[]}' > gl-tfsec-report.json
+      - name: Upload tfsec SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-tfsec-report.json
+          category: tfsec
+
+  container-scanning-fs:
+    name: Container/fs scan (Trivy)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          exit-code: 0
+          skip-dirs: node_modules
+      - name: Upload Trivy fs SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  # Mirrors GitLab's container-scanning-image job: builds the image, scans it
+  # with Trivy and reports via SARIF. Runs on main pushes only (mirrors the
+  # GitLab `only: main` gate).
+  container-scanning-image:
+    name: Container image scan (Trivy)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: devsecops-demo:latest
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: devsecops-demo:latest
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: 0
+      - name: Upload Trivy image SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
