@@ -62,6 +62,7 @@ function toSarif(audit) {
           help: { text: url || title },
           defaultConfiguration: { level: levelFor(severity) },
           properties: { tags: ['security', 'dependency'] },
+          ...(url ? { helpUri: url } : {}),
         };
         ruleById.set(id, { rule, ruleIndex: rules.length });
         rules.push(rule);
@@ -81,7 +82,6 @@ function toSarif(audit) {
             },
           },
         ],
-        ...(url ? { helpUri: url } : {}),
       });
     }
   }
