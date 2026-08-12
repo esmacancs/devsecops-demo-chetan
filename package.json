@@ -15,7 +15,7 @@
     "audit": "npm audit --audit-level=high",
     "retire": "retire --severity high",
     "licenses": "license-checker --summary",
-    "sast": "eslint src tests --format json --output-file gl-sast-report.json",
+    "sast": "eslint src tests -f @microsoft/eslint-formatter-sarif -o gl-sast-report.json",
     "secrets": "gitleaks detect --source . --report-path gl-secret-detection-report.json --no-banner"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "morgan": "^1.10.0"
   },
   "devDependencies": {
+    "@microsoft/eslint-formatter-sarif": "^3.1.0",
     "eslint": "^8.57.0",
     "eslint-plugin-security": "^3.0.1",
     "jest": "^29.7.0",

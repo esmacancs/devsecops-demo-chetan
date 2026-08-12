@@ -51,6 +51,8 @@ by a full suite of automated security scans at every stage.
 │   ├── provision-runner.sh   # Installs Node.js, Docker, kind + CLIs on runner (sudo)
 │   ├── deploy.sh             # Loads image into kind + kubectl/kustomize apply
 │   ├── smoke-test.sh         # Rollout + HTTP health/title checks per env
+│   ├── npm-audit-to-gitlab.js # npm audit JSON → GitLab dependency_scanning schema
+│   ├── trivy-to-gitlab.js    # trivy JSON → GitLab container_scanning schema
 │   └── docker-preview.sh     # Runs the app on the runner host (:8080) for a visual check
 ├── src/                      # Express server (app, config, error handler)
 ├── public/                   # Coffee Shop site (index.html, assits/, img/)

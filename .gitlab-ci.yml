@@ -14,10 +14,12 @@
 #                               use the tools.
 #
 # Security scans (SAST, secret detection, dependency scanning, license,
-# IaC, container/fs) run automatically on every merge request. They report to
-# the Security tab and are set to allow_failure so the pipeline stays green
-# while you inspect findings. Flip *_FAIL_ON_ISSUES to "true" (or remove the
-# `|| true` / allow_failure) to make them hard gates.
+# IaC, container/fs) run automatically on every merge request. They upload
+# GitLab-native reports (SARIF / GitLab JSON schemas via the converters in
+# scripts/) so findings show up in the **Security tab → Vulnerability Report**.
+# All scans are allow_failure so the pipeline stays green while you inspect
+# findings. Flip *_FAIL_ON_ISSUES to "true" (or remove the `|| true` /
+# allow_failure) to make them hard gates.
 #
 # On `main`, the pipeline is automated up to staging, then gated:
 #   test -> security scans -> build & push image -> Trivy image scan
@@ -97,41 +99,47 @@ test:
 # security — automatic scans (report to Security tab, non-blocking)
 # ----------------------------------------------------------------------------
 
-# SAST — ESLint with eslint-plugin-security
+# SAST — ESLint with eslint-plugin-security (SARIF → GitLab Security tab)
 sast-eslint:
   stage: security
   needs: [test]
   script:
     - npm ci
     - npm run sast || true
+    - test -s gl-sast-report.json || printf '{"version":"2.1.0","runs":[]}' > gl-sast-report.json
   artifacts:
     when: always
-    paths:
-      - gl-sast-report.json
+    reports:
+      sast: gl-sast-report.json
   allow_failure: true
 
-# Secret detection — gitleaks
+# Secret detection — gitleaks (SARIF → GitLab Security tab)
 secret-detection:
   stage: security
   script:
-    - gitleaks detect --source . --report-format json --report-path gl-secret-detection-report.json --no-banner || true
+    - gitleaks detect --source . --report-format sarif --report-path gl-secret-detection-report.json --no-banner || true
+    - test -s gl-secret-detection-report.json || printf '{"version":"2.1.0","runs":[]}' > gl-secret-detection-report.json
   artifacts:
     when: always
-    paths:
-      - gl-secret-detection-report.json
+    reports:
+      secret_detection: gl-secret-detection-report.json
   allow_failure: true
 
 # Dependency scanning — npm audit + Retire.js
+# npm audit JSON is converted to GitLab's dependency_scanning schema.
 dependency-scanning:
   stage: security
   script:
     - npm ci
-    - npm audit --json > gl-dependency-scanning-report.json || true
+    - npm audit --json > gl-npm-audit.json || true
+    - node scripts/npm-audit-to-gitlab.js gl-npm-audit.json gl-dependency-scanning-report.json package-lock.json || true
+    - test -s gl-dependency-scanning-report.json || printf '{"version":"14.0.0","vulnerabilities":[],"dependency_files":["package-lock.json"]}' > gl-dependency-scanning-report.json
     - npx retire --severity high --outputformat json --outputpath retire-report.json || true
   artifacts:
     when: always
+    reports:
+      dependency_scanning: gl-dependency-scanning-report.json
     paths:
-      - gl-dependency-scanning-report.json
       - retire-report.json
   allow_failure: true
 
@@ -147,28 +155,32 @@ license-compliance:
       - gl-license-scanning-report.json
   allow_failure: true
 
-# IaC scanning — KICS (terraform + k8s manifests).
+# IaC scanning — KICS (terraform + k8s manifests). SARIF → Security tab.
 # Queries are installed by provision-runner.sh at /usr/local/share/kics/queries.
 # Note: kics v2.x exits non-zero when findings exist, hence the `|| true`.
 sast-iac-kics:
   stage: security
   script:
-    - kics scan -p . -o . --report-formats json --output-name gl-sast-iac --queries-path /usr/local/share/kics/queries || true
+    - kics scan -p . -o . --report-formats sarif,json --output-name gl-sast-iac --queries-path /usr/local/share/kics/queries || true
+    - test -s gl-sast-iac.sarif || printf '{"version":"2.1.0","runs":[]}' > gl-sast-iac.sarif
   artifacts:
     when: always
+    reports:
+      sast: gl-sast-iac.sarif
     paths:
       - gl-sast-iac.json
   allow_failure: true
 
-# IaC scanning — tfsec (terraform)
+# IaC scanning — tfsec (terraform). SARIF → Security tab.
 sast-iac-tfsec:
   stage: security
   script:
-    - tfsec terraform --format json --out gl-tfsec-report.json || true
+    - tfsec terraform --format sarif --out gl-tfsec-report.json || true
+    - test -s gl-tfsec-report.json || printf '{"version":"2.1.0","runs":[]}' > gl-tfsec-report.json
   artifacts:
     when: always
-    paths:
-      - gl-tfsec-report.json
+    reports:
+      sast: gl-tfsec-report.json
   allow_failure: true
 
 # Container scanning (filesystem mode) — Trivy, no Docker required.
@@ -215,6 +227,7 @@ build-image:
 
 # Full container image vulnerability scan (needs Docker + built image)
 # Lives in the 'scan' stage (after 'package') because it needs the built image.
+# Trivy JSON is converted to GitLab's container_scanning schema (Security tab).
 container-scanning-image:
   stage: scan
   allow_failure: true
@@ -224,12 +237,17 @@ container-scanning-image:
   script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - docker pull "$IMAGE_TAG"
-    - trivy image --format json --exit-code 0 --output gl-container-image-report.json "$IMAGE_TAG" || true
+    - trivy image --format json --exit-code 0 --output gl-trivy.json "$IMAGE_TAG" || true
+    - node scripts/trivy-to-gitlab.js gl-trivy.json gl-container-image-report.json || true
+    - test -s gl-container-image-report.json || printf '{"version":"4.0.0","vulnerabilities":[]}' > gl-container-image-report.json
     - trivy image --severity HIGH,CRITICAL --exit-code 0 "$IMAGE_TAG" || true
   artifacts:
     when: always
+    reports:
+      container_scanning: gl-container-image-report.json
     paths:
-      - gl-container-image-report.json
+      - gl-trivy.json
+  allow_failure: true
 
 # ----------------------------------------------------------------------------
 # preview — run the app in Docker on the runner host so you can eyeball it
